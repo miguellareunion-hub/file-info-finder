@@ -16,7 +16,7 @@ export const REPLIT_TOOLS = rawTools.map((t) => ({
   function: { name: t.name, description: t.description, parameters: t.parameters },
 }));
 
-import { writeFile, readFile, fileExists, listFiles, runCommand, isServerCommand } from "./webcontainer";
+import { writeFile, readFile, fileExists, listFiles, runCommand, isServerCommand, getLastPreviewUrl, getPreviewDocument } from "./webcontainer";
 
 // Exécute réellement les outils via WebContainer quand c'est possible.
 // Notifie l'UI à chaque action via onFsChange (pour rafraîchir le panneau Fichiers).
@@ -31,6 +31,7 @@ export async function executeTool(
       const files = await listFiles("/");
       return files.some((file) => /(^|\/)index\.html$/i.test(file) || file.endsWith(".html"));
     };
+    const hasVisiblePreview = async () => Boolean(getLastPreviewUrl() || getPreviewDocument() || await hasRenderableHtml());
 
     switch (name) {
       case "str_replace_editor": {
@@ -121,18 +122,18 @@ export async function executeTool(
       case "web_application_feedback_tool":
       case "shell_command_application_feedback_tool":
       case "vnc_window_application_feedback":
-        if (!(await hasRenderableHtml())) {
+        if (!(await hasVisiblePreview())) {
           return JSON.stringify({
-            error: "Aucune preview réelle disponible : aucun fichier HTML n'a encore été créé. Crée d'abord index.html et les fichiers du projet.",
+            error: "Aucune preview réelle disponible : crée d'abord un index.html ou démarre le serveur du projet.",
           });
         }
         return JSON.stringify({ ok: true, note: "Preview HTML disponible dans le panneau de droite." });
       case "suggest_deploy":
         return JSON.stringify({ ok: true, note: "Deployment suggestion noted." });
       case "report_progress":
-        if (!(await hasRenderableHtml())) {
+        if (!(await hasVisiblePreview())) {
           return JSON.stringify({
-            error: "Impossible de confirmer l'avancement : aucun fichier HTML du projet n'a été créé pour l'instant.",
+            error: "Impossible de confirmer l'avancement : aucune preview du projet n'est encore disponible.",
           });
         }
         return JSON.stringify({ ok: true, summary: args.summary });
@@ -140,9 +141,9 @@ export async function executeTool(
       // === Le modèle invente parfois ces tools (alias des balises XML <proposed_*>) ===
       case "proposed_file_replace": {
         const path = String(args.file_path ?? args.path ?? "");
-        const content = String(args.content ?? args.file_text ?? args.body ?? args.new_str ?? "");
+        const content = String(args.contents ?? args.content ?? args.file_text ?? args.body ?? args.new_str ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
-        if (!hasNonEmptyText(args.content, args.file_text, args.body, args.new_str)) {
+        if (!hasNonEmptyText(args.contents, args.content, args.file_text, args.body, args.new_str)) {
           return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
         }
         await writeFile(path, content);
@@ -163,9 +164,9 @@ export async function executeTool(
       case "proposed_file_insert": {
         const path = String(args.file_path ?? "");
         const at = Number(args.line_number ?? 0);
-        const content = String(args.content ?? args.body ?? args.new_str ?? "");
+        const content = String(args.contents ?? args.content ?? args.body ?? args.new_str ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
-        if (!hasNonEmptyText(args.content, args.body, args.new_str)) {
+        if (!hasNonEmptyText(args.contents, args.content, args.body, args.new_str)) {
           return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
         }
         const cur = await readFile(path).catch(() => "");
