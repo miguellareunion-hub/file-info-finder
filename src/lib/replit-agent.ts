@@ -120,6 +120,64 @@ export async function executeTool(
         return JSON.stringify({ ok: true, note: "Deployment suggestion noted." });
       case "report_progress":
         return JSON.stringify({ ok: true, summary: args.summary });
+
+      // === Le modèle invente parfois ces tools (alias des balises XML <proposed_*>) ===
+      case "proposed_file_replace": {
+        const path = String(args.file_path ?? args.path ?? "");
+        const content = String(args.content ?? args.file_text ?? args.body ?? "");
+        if (!path) return JSON.stringify({ error: "missing file_path" });
+        await writeFile(path, content);
+        onFsChange?.();
+        return JSON.stringify({ ok: true, written: path });
+      }
+      case "proposed_file_replace_substring": {
+        const path = String(args.file_path ?? args.path ?? "");
+        const oldStr = String(args.old_str ?? "");
+        const newStr = String(args.new_str ?? "");
+        if (!path) return JSON.stringify({ error: "missing file_path" });
+        const cur = await readFile(path).catch(() => "");
+        if (!cur.includes(oldStr)) return JSON.stringify({ error: "old_str not found" });
+        await writeFile(path, cur.replace(oldStr, newStr));
+        onFsChange?.();
+        return JSON.stringify({ ok: true, patched: path });
+      }
+      case "proposed_file_insert": {
+        const path = String(args.file_path ?? "");
+        const at = Number(args.line_number ?? 0);
+        const content = String(args.content ?? args.body ?? "");
+        if (!path) return JSON.stringify({ error: "missing file_path" });
+        const cur = await readFile(path).catch(() => "");
+        const lines = cur.split("\n");
+        lines.splice(Math.min(at, lines.length), 0, content);
+        await writeFile(path, lines.join("\n"));
+        onFsChange?.();
+        return JSON.stringify({ ok: true, inserted_in: path, at });
+      }
+      case "proposed_shell_command": {
+        const command = String(args.command ?? args.body ?? "");
+        if (!command) return JSON.stringify({ error: "missing command" });
+        const bg = isServerCommand(command);
+        const r = await runCommand(command, { background: bg });
+        onFsChange?.();
+        return JSON.stringify({ exit_code: r.exitCode, output: r.output.slice(-2000), background: bg });
+      }
+      case "proposed_package_install": {
+        const list = (args.package_list as string)?.split(",").map((s) => s.trim()).filter(Boolean) ||
+                     (args.packages as string[]) || [];
+        if (list.length === 0) return JSON.stringify({ error: "no packages" });
+        const r = await runCommand(`npm install ${list.join(" ")}`);
+        onFsChange?.();
+        return JSON.stringify({ exit_code: r.exitCode, output: r.output.slice(-1500) });
+      }
+      case "proposed_workflow_configuration": {
+        const cmds = String(args.body ?? args.commands ?? args.command ?? "")
+          .split("\n").map((s) => s.trim()).filter(Boolean);
+        if (cmds.length === 0) return JSON.stringify({ error: "no commands" });
+        for (const c of cmds) await runCommand(c, { background: true });
+        onFsChange?.();
+        return JSON.stringify({ ok: true, started: cmds });
+      }
+
       default:
         return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
