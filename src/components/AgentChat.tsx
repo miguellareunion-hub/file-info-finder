@@ -34,9 +34,9 @@ export function AgentChat() {
     try {
       const headers: Record<string, string> = {};
       if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
-      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`, { headers });
+      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/api/v1/models`, { headers });
       setStatus(r.ok ? "ok" : "ko");
-      if (!r.ok) setError(`HTTP ${r.status} sur /v1/models`);
+      if (!r.ok) setError(`HTTP ${r.status} sur /api/v1/models`);
     } catch (e) {
       setStatus("ko");
       const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
