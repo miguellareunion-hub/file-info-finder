@@ -14,6 +14,7 @@ import {
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
   buildEndpoint,
+  normalizeBaseUrl,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
