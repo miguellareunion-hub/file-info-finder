@@ -226,12 +226,13 @@ export async function callLMStudio(
   return json.choices[0].message;
 }
 
-// Boucle agentique : appelle LM Studio, exécute les tool_calls (mock), renvoie au modèle, jusqu'à réponse finale.
+// Boucle agentique : appelle LM Studio, exécute les tool_calls (réels via WebContainer), renvoie au modèle, jusqu'à réponse finale.
 export async function runAgentLoop(
   config: LMStudioConfig,
   history: ChatMessage[],
   onStep: (msg: ChatMessage) => void,
-  maxSteps = 6,
+  onFsChange?: () => void,
+  maxSteps = 8,
 ): Promise<void> {
   const conv = [...history];
   for (let i = 0; i < maxSteps; i++) {
@@ -253,7 +254,7 @@ export async function runAgentLoop(
       } catch {
         parsed = { _raw: call.function.arguments };
       }
-      const result = mockToolExecution(call.function.name, parsed);
+      const result = await executeTool(call.function.name, parsed, onFsChange);
       const toolMsg: ChatMessage = {
         role: "tool",
         content: result,
@@ -265,3 +266,4 @@ export async function runAgentLoop(
     }
   }
 }
+
