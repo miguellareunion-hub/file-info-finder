@@ -212,11 +212,21 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+export type Provider = "lmstudio" | "openai";
+
 export interface LMStudioConfig {
+  provider: Provider;
   baseUrl: string;
   model: string;
   apiKey?: string;
 }
+
+export const DEFAULT_OPENAI_CONFIG: LMStudioConfig = {
+  provider: "openai",
+  baseUrl: "https://api.openai.com",
+  model: "gpt-4o-mini",
+  apiKey: "",
+};
 
 // Normalise une URL saisie par l'utilisateur :
 // - ajoute http:// si absent
