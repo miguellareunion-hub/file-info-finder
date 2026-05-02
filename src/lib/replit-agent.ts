@@ -16,47 +16,118 @@ export const REPLIT_TOOLS = rawTools.map((t) => ({
   function: { name: t.name, description: t.description, parameters: t.parameters },
 }));
 
-// Mock execution: l'app tourne dans le navigateur, donc on simule l'exécution des outils
-// et on renvoie un résultat plausible au modèle pour qu'il continue son raisonnement.
-export function mockToolExecution(name: string, args: Record<string, unknown>): string {
-  switch (name) {
-    case "check_secrets": {
-      const keys = (args.secret_keys as string[]) || [];
-      return JSON.stringify({ result: keys.map((k) => ({ key: k, exists: false })) });
+import { writeFile, readFile, fileExists, listFiles, runCommand, isServerCommand } from "./webcontainer";
+
+// Exécute réellement les outils via WebContainer quand c'est possible.
+// Notifie l'UI à chaque action via onFsChange (pour rafraîchir le panneau Fichiers).
+export async function executeTool(
+  name: string,
+  args: Record<string, unknown>,
+  onFsChange?: () => void,
+): Promise<string> {
+  try {
+    switch (name) {
+      case "str_replace_editor": {
+        const cmd = String(args.command ?? "");
+        const path = String(args.path ?? "");
+        if (cmd === "create") {
+          await writeFile(path, String(args.file_text ?? ""));
+          onFsChange?.();
+          return JSON.stringify({ ok: true, created: path });
+        }
+        if (cmd === "view") {
+          if (!path) return JSON.stringify({ error: "missing path" });
+          if (path.endsWith("/") || !(await fileExists(path))) {
+            const files = await listFiles(path || "/");
+            return JSON.stringify({ files });
+          }
+          const content = await readFile(path);
+          return JSON.stringify({ path, content });
+        }
+        if (cmd === "str_replace") {
+          const current = await readFile(path);
+          const oldStr = String(args.old_str ?? "");
+          const newStr = String(args.new_str ?? "");
+          if (!current.includes(oldStr)) {
+            return JSON.stringify({ error: "old_str not found in file" });
+          }
+          await writeFile(path, current.replace(oldStr, newStr));
+          onFsChange?.();
+          return JSON.stringify({ ok: true, replaced_in: path });
+        }
+        if (cmd === "insert") {
+          const current = await readFile(path);
+          const lines = current.split("\n");
+          const at = Number(args.insert_line ?? lines.length);
+          lines.splice(at, 0, String(args.new_str ?? ""));
+          await writeFile(path, lines.join("\n"));
+          onFsChange?.();
+          return JSON.stringify({ ok: true, inserted_in: path, at });
+        }
+        return JSON.stringify({ error: `unsupported str_replace_editor command: ${cmd}` });
+      }
+      case "bash": {
+        const command = String(args.command ?? "");
+        if (!command) return JSON.stringify({ error: "missing command" });
+        const bg = isServerCommand(command);
+        const r = await runCommand(command, { background: bg });
+        onFsChange?.();
+        return JSON.stringify({ exit_code: r.exitCode, output: r.output.slice(-4000), background: bg });
+      }
+      case "search_filesystem": {
+        const files = await listFiles("/");
+        return JSON.stringify({ files: files.slice(0, 200) });
+      }
+      case "packager_tool": {
+        const list = (args.dependency_list as string[]) || [];
+        const action = String(args.install_or_uninstall ?? "install");
+        const lang = String(args.language_or_system ?? "nodejs");
+        if (list.length === 0) return JSON.stringify({ ok: true, note: "no deps" });
+        const cmd = lang === "system"
+          ? JSON.stringify({ error: "System packages not available in WebContainer" })
+          : `npm ${action === "install" ? "install" : "uninstall"} ${list.join(" ")}`;
+        if (typeof cmd !== "string") return cmd;
+        const r = await runCommand(cmd);
+        onFsChange?.();
+        return JSON.stringify({ exit_code: r.exitCode, output: r.output.slice(-2000) });
+      }
+      case "workflows_set_run_config_tool": {
+        const command = String(args.command ?? "");
+        if (!command) return JSON.stringify({ error: "missing command" });
+        await runCommand(command, { background: true });
+        return JSON.stringify({ ok: true, started: args.name, command });
+      }
+      case "restart_workflow":
+      case "workflows_remove_run_config_tool":
+        return JSON.stringify({ ok: true, note: "Workflow ack (single-process sandbox)." });
+      case "check_secrets": {
+        const keys = (args.secret_keys as string[]) || [];
+        return JSON.stringify({ result: keys.map((k) => ({ key: k, exists: false })) });
+      }
+      case "ask_secrets":
+        return JSON.stringify({ ok: true, note: "Secret request acknowledged (sandbox has no secrets)." });
+      case "create_postgresql_database_tool":
+      case "check_database_status":
+      case "execute_sql_tool":
+        return JSON.stringify({ error: "PostgreSQL not available in WebContainer sandbox." });
+      case "programming_language_install_tool":
+        return JSON.stringify({ ok: true, note: "Node.js déjà disponible dans WebContainer." });
+      case "web_application_feedback_tool":
+      case "shell_command_application_feedback_tool":
+      case "vnc_window_application_feedback":
+        return JSON.stringify({ ok: true, note: "Preview visible dans le panneau de droite." });
+      case "suggest_deploy":
+        return JSON.stringify({ ok: true, note: "Deployment suggestion noted." });
+      case "report_progress":
+        return JSON.stringify({ ok: true, summary: args.summary });
+      default:
+        return JSON.stringify({ error: `Unknown tool: ${name}` });
     }
-    case "search_filesystem":
-      return JSON.stringify({ matches: [], note: "Mock IDE — no real filesystem in this sandbox." });
-    case "bash":
-      return JSON.stringify({ stdout: "(mocked) command acknowledged", stderr: "", exit_code: 0, command: args.command });
-    case "str_replace_editor":
-      return JSON.stringify({ ok: true, command: args.command, path: args.path, note: "Mock IDE — file change recorded." });
-    case "packager_tool":
-    case "programming_language_install_tool":
-      return JSON.stringify({ ok: true, note: "Mock install completed.", args });
-    case "create_postgresql_database_tool":
-      return JSON.stringify({ ok: true, DATABASE_URL: "postgres://mock:mock@localhost:5432/mock" });
-    case "check_database_status":
-      return JSON.stringify({ available: true });
-    case "execute_sql_tool":
-      return JSON.stringify({ rows: [], note: "Mock DB — no rows." });
-    case "workflows_set_run_config_tool":
-    case "workflows_remove_run_config_tool":
-    case "restart_workflow":
-      return JSON.stringify({ ok: true, args });
-    case "web_application_feedback_tool":
-    case "shell_command_application_feedback_tool":
-    case "vnc_window_application_feedback":
-      return JSON.stringify({ ok: true, note: "User feedback simulated.", args });
-    case "ask_secrets":
-      return JSON.stringify({ ok: true, note: "Secret request shown to user (mock).", args });
-    case "suggest_deploy":
-      return JSON.stringify({ ok: true, note: "Deployment suggestion shown to user." });
-    case "report_progress":
-      return JSON.stringify({ ok: true, summary: args.summary });
-    default:
-      return JSON.stringify({ error: `Unknown tool: ${name}` });
+  } catch (e) {
+    return JSON.stringify({ error: e instanceof Error ? e.message : String(e) });
   }
 }
+
 
 export type ChatMessage =
   | { role: "system" | "user"; content: string }
@@ -155,12 +226,13 @@ export async function callLMStudio(
   return json.choices[0].message;
 }
 
-// Boucle agentique : appelle LM Studio, exécute les tool_calls (mock), renvoie au modèle, jusqu'à réponse finale.
+// Boucle agentique : appelle LM Studio, exécute les tool_calls (réels via WebContainer), renvoie au modèle, jusqu'à réponse finale.
 export async function runAgentLoop(
   config: LMStudioConfig,
   history: ChatMessage[],
   onStep: (msg: ChatMessage) => void,
-  maxSteps = 6,
+  onFsChange?: () => void,
+  maxSteps = 8,
 ): Promise<void> {
   const conv = [...history];
   for (let i = 0; i < maxSteps; i++) {
@@ -182,7 +254,7 @@ export async function runAgentLoop(
       } catch {
         parsed = { _raw: call.function.arguments };
       }
-      const result = mockToolExecution(call.function.name, parsed);
+      const result = await executeTool(call.function.name, parsed, onFsChange);
       const toolMsg: ChatMessage = {
         role: "tool",
         content: result,
@@ -194,3 +266,4 @@ export async function runAgentLoop(
     }
   }
 }
+
