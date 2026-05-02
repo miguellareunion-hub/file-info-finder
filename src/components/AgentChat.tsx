@@ -152,17 +152,19 @@ export function AgentChat() {
               placeholder={config.provider === "openai" ? "gpt-4o-mini" : "google/gemma-4-4b"}
             />
           </div>
-          <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              API Key {config.provider === "openai" ? "(requise)" : "(optionnel)"}
-            </label>
-            <Input
-              type="password"
-              value={config.apiKey ?? ""}
-              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder={config.provider === "openai" ? "sk-..." : "sk-lm-..."}
-            />
-          </div>
+          {config.provider === "openai" && (
+            <div className="sm:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground">
+                API Key (requise)
+              </label>
+              <Input
+                type="password"
+                value={config.apiKey ?? ""}
+                onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+                placeholder="sk-..."
+              />
+            </div>
+          )}
         </div>
       </header>
 
