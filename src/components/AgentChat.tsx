@@ -32,7 +32,9 @@ export function AgentChat() {
     setStatus("unknown");
     setError(null);
     try {
-      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`);
+      const headers: Record<string, string> = {};
+      if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
+      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`, { headers });
       setStatus(r.ok ? "ok" : "ko");
       if (!r.ok) setError(`HTTP ${r.status} sur /v1/models`);
     } catch (e) {
