@@ -251,7 +251,7 @@ export async function callLMStudio(
   config: LMStudioConfig,
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
-  const url = `${config.baseUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  const url = `${normalizeBaseUrl(config.baseUrl)}/v1/chat/completions`;
   const resp = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
