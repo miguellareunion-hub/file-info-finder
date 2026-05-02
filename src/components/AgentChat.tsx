@@ -18,6 +18,7 @@ import {
   runAgentLoop,
 } from "@/lib/replit-agent";
 import { getContainer, listFiles, readFile, onPreviewUrl, getLastPreviewUrl } from "@/lib/webcontainer";
+import { stripProposedTags } from "@/lib/proposed-actions";
 
 export function AgentChat() {
   const [config, setConfig] = useState<LMStudioConfig>(DEFAULT_LMSTUDIO_CONFIG);
@@ -303,7 +304,7 @@ function MessageBubble({ msg }: { msg: ChatMessage }) {
           <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assistant</div>
           {msg.content && (
             <div className="prose prose-sm max-w-none text-sm dark:prose-invert">
-              <ReactMarkdown>{msg.content}</ReactMarkdown>
+              <ReactMarkdown>{stripProposedTags(msg.content || "")}</ReactMarkdown>
             </div>
           )}
           {msg.tool_calls?.map((tc) => (

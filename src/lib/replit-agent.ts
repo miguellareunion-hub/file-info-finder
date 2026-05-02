@@ -226,7 +226,74 @@ export async function callLMStudio(
   return json.choices[0].message;
 }
 
-// Boucle agentique : appelle LM Studio, exécute les tool_calls (réels via WebContainer), renvoie au modèle, jusqu'à réponse finale.
+import { parseProposedActions, type ProposedAction } from "./proposed-actions";
+import { writeFile as wcWrite, readFile as wcRead, runCommand as wcRun, isServerCommand as wcIsServer } from "./webcontainer";
+
+// Applique les <proposed_*> trouvés dans un message assistant.
+async function applyProposedActions(actions: ProposedAction[], onFsChange?: () => void): Promise<string[]> {
+  const log: string[] = [];
+  for (const a of actions) {
+    try {
+      switch (a.kind) {
+        case "create_or_replace":
+          await wcWrite(a.path, a.content);
+          onFsChange?.();
+          log.push(`✓ écrit ${a.path}`);
+          break;
+        case "replace_substring": {
+          const cur = await wcRead(a.path).catch(() => "");
+          if (!cur.includes(a.oldStr)) {
+            log.push(`✗ old_str introuvable dans ${a.path}`);
+            break;
+          }
+          await wcWrite(a.path, cur.replace(a.oldStr, a.newStr));
+          onFsChange?.();
+          log.push(`✓ patch ${a.path}`);
+          break;
+        }
+        case "insert": {
+          const cur = await wcRead(a.path).catch(() => "");
+          const lines = cur.split("\n");
+          const at = Math.min(a.lineNumber, lines.length);
+          lines.splice(at, 0, a.content);
+          await wcWrite(a.path, lines.join("\n"));
+          onFsChange?.();
+          log.push(`✓ insertion ${a.path}@${at}`);
+          break;
+        }
+        case "shell": {
+          const bg = wcIsServer(a.command);
+          const r = await wcRun(a.command, { background: bg });
+          onFsChange?.();
+          log.push(`$ ${a.command} → exit ${r.exitCode}${bg ? " (bg)" : ""}`);
+          break;
+        }
+        case "package_install": {
+          const cmd = `npm install ${a.packages.join(" ")}`;
+          const r = await wcRun(cmd);
+          onFsChange?.();
+          log.push(`📦 ${cmd} → exit ${r.exitCode}`);
+          break;
+        }
+        case "workflow": {
+          for (const c of a.commands) {
+            const bg = wcIsServer(c) || a.setRunButton === true;
+            await wcRun(c, { background: bg });
+          }
+          onFsChange?.();
+          log.push(`▶ workflow "${a.name}" lancé (${a.commands.length} cmd)`);
+          break;
+        }
+      }
+    } catch (e) {
+      log.push(`✗ ${a.kind}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return log;
+}
+
+// Boucle agentique : appelle LM Studio, exécute les tool_calls + applique les <proposed_*> trouvés
+// dans le contenu textuel (style Replit Assistant), renvoie au modèle si nécessaire.
 export async function runAgentLoop(
   config: LMStudioConfig,
   history: ChatMessage[],
@@ -245,25 +312,46 @@ export async function runAgentLoop(
     conv.push(assistantMsg);
     onStep(assistantMsg);
 
-    if (!msg.tool_calls || msg.tool_calls.length === 0) return;
-
-    for (const call of msg.tool_calls) {
-      let parsed: Record<string, unknown> = {};
-      try {
-        parsed = JSON.parse(call.function.arguments || "{}");
-      } catch {
-        parsed = { _raw: call.function.arguments };
+    // 1) Outils JSON tool-calling (si le modèle les supporte)
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      for (const call of msg.tool_calls) {
+        let parsed: Record<string, unknown> = {};
+        try {
+          parsed = JSON.parse(call.function.arguments || "{}");
+        } catch {
+          parsed = { _raw: call.function.arguments };
+        }
+        const result = await executeTool(call.function.name, parsed, onFsChange);
+        const toolMsg: ChatMessage = {
+          role: "tool",
+          content: result,
+          tool_call_id: call.id,
+          name: call.function.name,
+        };
+        conv.push(toolMsg);
+        onStep(toolMsg);
       }
-      const result = await executeTool(call.function.name, parsed, onFsChange);
-      const toolMsg: ChatMessage = {
-        role: "tool",
-        content: result,
-        tool_call_id: call.id,
-        name: call.function.name,
-      };
-      conv.push(toolMsg);
-      onStep(toolMsg);
+      continue; // Le modèle attend la suite après ses tool_calls.
     }
+
+    // 2) Actions XML <proposed_*> dans le contenu (mode Replit natif)
+    const actions = parseProposedActions(assistantMsg.content || "");
+    if (actions.length > 0) {
+      const log = await applyProposedActions(actions, onFsChange);
+      // Injecte un faux message "tool" récap pour montrer ce qui a été appliqué.
+      const recap: ChatMessage = {
+        role: "tool",
+        content: JSON.stringify({ applied: log }, null, 2),
+        tool_call_id: `proposed-${i}`,
+        name: "apply_proposed_actions",
+      };
+      conv.push(recap);
+      onStep(recap);
+      continue; // Boucle pour donner au modèle l'occasion de répondre/poursuivre.
+    }
+
+    // Pas d'outil ni d'action proposée → réponse finale.
+    return;
   }
 }
 
