@@ -14,6 +14,7 @@ import {
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
   buildEndpoint,
+  normalizeBaseUrl,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
@@ -89,6 +90,12 @@ export function AgentChat() {
     setError(null);
   }
 
+  function resetConfig() {
+    setConfig(config.provider === "openai" ? DEFAULT_OPENAI_CONFIG : DEFAULT_LMSTUDIO_CONFIG);
+    setStatus("unknown");
+    setError(null);
+  }
+
   return (
     <div className="mx-auto flex h-screen max-w-5xl flex-col gap-4 p-4">
       <header className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
@@ -104,7 +111,8 @@ export function AgentChat() {
               {status === "ok" ? "Connecté" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
             </Badge>
             <Button size="sm" variant="outline" onClick={ping}>Tester</Button>
-            <Button size="sm" variant="ghost" onClick={reset}>Reset</Button>
+            <Button size="sm" variant="outline" onClick={resetConfig}>Réinit. config</Button>
+            <Button size="sm" variant="ghost" onClick={reset}>Reset chat</Button>
           </div>
         </div>
 
@@ -130,7 +138,11 @@ export function AgentChat() {
             <label className="text-xs font-medium text-muted-foreground">
               Base URL {config.provider === "openai" ? "OpenAI" : "LM Studio"}
             </label>
-            <Input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} />
+            <Input
+              value={config.baseUrl}
+              onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
+              onBlur={(e) => setConfig({ ...config, baseUrl: normalizeBaseUrl(e.target.value) })}
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
