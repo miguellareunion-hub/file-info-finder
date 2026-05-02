@@ -243,10 +243,18 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
+  provider: "lmstudio",
   baseUrl: "http://88.186.220.76:50000",
   model: "google/gemma-4-4b",
   apiKey: "sk-lm-WPrqiEzM:MRKss7IoEmFQw62OnCrF",
 };
+
+export function buildEndpoint(config: LMStudioConfig, path: "chat/completions" | "models"): string {
+  const base = normalizeBaseUrl(config.baseUrl);
+  // OpenAI utilise /v1, LM Studio utilise /api/v1 (mais accepte /v1 aussi)
+  const prefix = config.provider === "openai" ? "/v1" : "/api/v1";
+  return `${base}${prefix}/${path}`;
+}
 
 interface CompletionResponse {
   choices: Array<{
