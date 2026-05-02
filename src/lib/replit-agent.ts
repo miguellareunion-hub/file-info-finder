@@ -26,6 +26,8 @@ export async function executeTool(
   onFsChange?: () => void,
 ): Promise<string> {
   try {
+    const hasNonEmptyText = (...values: unknown[]) => values.some((value) => typeof value === "string" && value.trim().length > 0);
+
     switch (name) {
       case "str_replace_editor": {
         const cmd = String(args.command ?? "");
@@ -126,6 +128,9 @@ export async function executeTool(
         const path = String(args.file_path ?? args.path ?? "");
         const content = String(args.content ?? args.file_text ?? args.body ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
+        if (!hasNonEmptyText(args.content, args.file_text, args.body)) {
+          return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
+        }
         await writeFile(path, content);
         onFsChange?.();
         return JSON.stringify({ ok: true, written: path });
@@ -146,6 +151,9 @@ export async function executeTool(
         const at = Number(args.line_number ?? 0);
         const content = String(args.content ?? args.body ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
+        if (!hasNonEmptyText(args.content, args.body)) {
+          return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
+        }
         const cur = await readFile(path).catch(() => "");
         const lines = cur.split("\n");
         lines.splice(Math.min(at, lines.length), 0, content);
@@ -370,6 +378,8 @@ export async function runAgentLoop(
     conv.push(assistantMsg);
     onStep(assistantMsg);
 
+    const actions = parseProposedActions(assistantMsg.content || "");
+
     // 1) Outils JSON tool-calling (si le modèle les supporte)
     if (msg.tool_calls && msg.tool_calls.length > 0) {
       for (const call of msg.tool_calls) {
@@ -389,11 +399,21 @@ export async function runAgentLoop(
         conv.push(toolMsg);
         onStep(toolMsg);
       }
+      if (actions.length > 0) {
+        const log = await applyProposedActions(actions, onFsChange);
+        const recap: ChatMessage = {
+          role: "tool",
+          content: JSON.stringify({ applied: log }, null, 2),
+          tool_call_id: `proposed-${i}`,
+          name: "apply_proposed_actions",
+        };
+        conv.push(recap);
+        onStep(recap);
+      }
       continue; // Le modèle attend la suite après ses tool_calls.
     }
 
     // 2) Actions XML <proposed_*> dans le contenu (mode Replit natif)
-    const actions = parseProposedActions(assistantMsg.content || "");
     if (actions.length > 0) {
       const log = await applyProposedActions(actions, onFsChange);
       // Injecte un faux message "tool" récap pour montrer ce qui a été appliqué.
