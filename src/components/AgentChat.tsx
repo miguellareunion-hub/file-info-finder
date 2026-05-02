@@ -11,6 +11,7 @@ import {
   DEFAULT_LMSTUDIO_CONFIG,
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
+  normalizeBaseUrl,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
@@ -29,11 +30,23 @@ export function AgentChat() {
 
   async function ping() {
     setStatus("unknown");
+    setError(null);
     try {
-      const r = await fetch(`${config.baseUrl.replace(/\/$/, "")}/v1/models`);
+      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`);
       setStatus(r.ok ? "ok" : "ko");
-    } catch {
+      if (!r.ok) setError(`HTTP ${r.status} sur /v1/models`);
+    } catch (e) {
       setStatus("ko");
+      const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+      const isHttp = /^http:\/\//i.test(config.baseUrl);
+      if (isHttps && isHttp) {
+        setError(
+          "Mixed Content bloqué : la preview Lovable est en HTTPS mais LM Studio est en HTTP. " +
+          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer LM Studio via HTTPS (ngrok/cloudflared), (3) utiliser un reverse proxy HTTPS."
+        );
+      } else {
+        setError(e instanceof Error ? e.message : "Connexion impossible (CORS ? pare-feu ? IP joignable ?)");
+      }
     }
   }
 
@@ -102,7 +115,7 @@ export function AgentChat() {
             <div className="max-w-md">
               <p className="mb-2 font-medium text-foreground">Démarre une conversation avec l'agent.</p>
               <p>Il se comporte exactement comme le Replit Assistant : il propose des changements de fichiers, des commandes shell, et peut appeler ses 18 outils.</p>
-              <p className="mt-2 text-xs">Note : l'app doit tourner sur le même réseau que LM Studio (192.168.1.7).</p>
+              <p className="mt-2 text-xs">Note : LM Studio doit être joignable depuis le navigateur (CORS activé). En HTTPS, l'IP HTTP publique sera bloquée par Mixed Content — utilise ngrok/cloudflared pour exposer en HTTPS.</p>
             </div>
           </div>
         )}
