@@ -30,11 +30,23 @@ export function AgentChat() {
 
   async function ping() {
     setStatus("unknown");
+    setError(null);
     try {
-      const r = await fetch(`${config.baseUrl.replace(/\/$/, "")}/v1/models`);
+      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`);
       setStatus(r.ok ? "ok" : "ko");
-    } catch {
+      if (!r.ok) setError(`HTTP ${r.status} sur /v1/models`);
+    } catch (e) {
       setStatus("ko");
+      const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
+      const isHttp = /^http:\/\//i.test(config.baseUrl);
+      if (isHttps && isHttp) {
+        setError(
+          "Mixed Content bloqué : la preview Lovable est en HTTPS mais LM Studio est en HTTP. " +
+          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer LM Studio via HTTPS (ngrok/cloudflared), (3) utiliser un reverse proxy HTTPS."
+        );
+      } else {
+        setError(e instanceof Error ? e.message : "Connexion impossible (CORS ? pare-feu ? IP joignable ?)");
+      }
     }
   }
 
