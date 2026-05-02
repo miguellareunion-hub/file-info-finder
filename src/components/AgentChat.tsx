@@ -18,6 +18,7 @@ import {
   runAgentLoop,
 } from "@/lib/replit-agent";
 import { getContainer, listFiles, readFile, onPreviewUrl, getLastPreviewUrl } from "@/lib/webcontainer";
+import { stripProposedTags } from "@/lib/proposed-actions";
 
 export function AgentChat() {
   const [config, setConfig] = useState<LMStudioConfig>(DEFAULT_LMSTUDIO_CONFIG);
