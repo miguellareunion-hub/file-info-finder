@@ -126,9 +126,9 @@ export async function executeTool(
       // === Le modèle invente parfois ces tools (alias des balises XML <proposed_*>) ===
       case "proposed_file_replace": {
         const path = String(args.file_path ?? args.path ?? "");
-        const content = String(args.content ?? args.file_text ?? args.body ?? "");
+        const content = String(args.content ?? args.file_text ?? args.body ?? args.new_str ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
-        if (!hasNonEmptyText(args.content, args.file_text, args.body)) {
+        if (!hasNonEmptyText(args.content, args.file_text, args.body, args.new_str)) {
           return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
         }
         await writeFile(path, content);
@@ -149,9 +149,9 @@ export async function executeTool(
       case "proposed_file_insert": {
         const path = String(args.file_path ?? "");
         const at = Number(args.line_number ?? 0);
-        const content = String(args.content ?? args.body ?? "");
+        const content = String(args.content ?? args.body ?? args.new_str ?? "");
         if (!path) return JSON.stringify({ error: "missing file_path" });
-        if (!hasNonEmptyText(args.content, args.body)) {
+        if (!hasNonEmptyText(args.content, args.body, args.new_str)) {
           return JSON.stringify({ ok: true, skipped: path, reason: "empty inline content; waiting for XML body" });
         }
         const cur = await readFile(path).catch(() => "");
