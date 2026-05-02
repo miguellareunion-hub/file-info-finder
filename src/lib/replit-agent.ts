@@ -27,6 +27,10 @@ export async function executeTool(
 ): Promise<string> {
   try {
     const hasNonEmptyText = (...values: unknown[]) => values.some((value) => typeof value === "string" && value.trim().length > 0);
+    const hasRenderableHtml = async () => {
+      const files = await listFiles("/");
+      return files.some((file) => /(^|\/)index\.html$/i.test(file) || file.endsWith(".html"));
+    };
 
     switch (name) {
       case "str_replace_editor": {
@@ -117,10 +121,20 @@ export async function executeTool(
       case "web_application_feedback_tool":
       case "shell_command_application_feedback_tool":
       case "vnc_window_application_feedback":
-        return JSON.stringify({ ok: true, note: "Preview visible dans le panneau de droite." });
+        if (!(await hasRenderableHtml())) {
+          return JSON.stringify({
+            error: "Aucune preview réelle disponible : aucun fichier HTML n'a encore été créé. Crée d'abord index.html et les fichiers du projet.",
+          });
+        }
+        return JSON.stringify({ ok: true, note: "Preview HTML disponible dans le panneau de droite." });
       case "suggest_deploy":
         return JSON.stringify({ ok: true, note: "Deployment suggestion noted." });
       case "report_progress":
+        if (!(await hasRenderableHtml())) {
+          return JSON.stringify({
+            error: "Impossible de confirmer l'avancement : aucun fichier HTML du projet n'a été créé pour l'instant.",
+          });
+        }
         return JSON.stringify({ ok: true, summary: args.summary });
 
       // === Le modèle invente parfois ces tools (alias des balises XML <proposed_*>) ===
