@@ -111,7 +111,8 @@ export function AgentChat() {
               {status === "ok" ? "Connecté" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
             </Badge>
             <Button size="sm" variant="outline" onClick={ping}>Tester</Button>
-            <Button size="sm" variant="ghost" onClick={reset}>Reset</Button>
+            <Button size="sm" variant="outline" onClick={resetConfig}>Réinit. config</Button>
+            <Button size="sm" variant="ghost" onClick={reset}>Reset chat</Button>
           </div>
         </div>
 
