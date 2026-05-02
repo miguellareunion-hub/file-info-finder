@@ -232,7 +232,7 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
-  baseUrl: "http://192.168.1.7:1234",
+  baseUrl: "http://88.186.220.76:50000",
   model: "google/gemma-4-4b",
 };
 
