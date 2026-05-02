@@ -1,9 +1,16 @@
-import type { WebContainer, FileSystemTree } from "@webcontainer/api";
+import type { FileSystemTree, WebContainer } from "@webcontainer/api";
 
-let bootPromise: Promise<WebContainer> | null = null;
+type SandboxMode = "webcontainer" | "fallback";
+
+let bootPromise: Promise<WebContainer | null> | null = null;
 let instance: WebContainer | null = null;
+let sandboxMode: SandboxMode = "fallback";
+let bootError: string | null = null;
 const urlListeners = new Set<(url: string) => void>();
 let lastUrl: string | null = null;
+let fallbackPreviewDocument: string | null = null;
+let fallbackObjectUrls: string[] = [];
+const fallbackFiles = new Map<string, string>();
 
 async function loadWebContainerModule() {
   if (typeof window === "undefined") {
@@ -38,23 +45,225 @@ const initialFiles: FileSystemTree = {
       contents: "# Sandbox WebContainer\n\nL'agent Replit Assistant a accès à ce système de fichiers Node.js.\n",
     },
   },
+  "index.html": {
+    file: {
+      contents: `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Preview prête</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0f1115;
+        color: #f5f7fb;
+        font-family: Inter, Arial, sans-serif;
+      }
+      main {
+        max-width: 560px;
+        padding: 32px;
+        text-align: center;
+      }
+      h1 { margin: 0 0 12px; font-size: 28px; }
+      p { margin: 0; color: #a7b0c0; line-height: 1.6; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Preview active</h1>
+      <p>Le mode secours affiche ici automatiquement toute page index.html créée par l’agent.</p>
+    </main>
+  </body>
+</html>`,
+    },
+  },
 };
 
-export async function getContainer(): Promise<WebContainer> {
+function supportsWebContainer() {
+  return typeof window !== "undefined" && window.crossOriginIsolated === true && typeof SharedArrayBuffer !== "undefined";
+}
+
+function seedFallbackFiles() {
+  if (fallbackFiles.size > 0) return;
+
+  fallbackFiles.set(
+    "/package.json",
+    JSON.stringify(
+      {
+        name: "replit-clone-sandbox",
+        type: "module",
+        scripts: { start: "node index.js" },
+      },
+      null,
+      2,
+    ),
+  );
+  fallbackFiles.set(
+    "/index.js",
+    "// Sandbox prêt. L'agent peut créer/modifier des fichiers ici via les outils.\nconsole.log('WebContainer ready');\n",
+  );
+  fallbackFiles.set("/README.md", "# Sandbox WebContainer\n\nL'agent Replit Assistant a accès à ce système de fichiers Node.js.\n");
+  fallbackFiles.set(
+    "/index.html",
+    `<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Preview prête</title>
+    <style>
+      :root { color-scheme: dark; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #0f1115;
+        color: #f5f7fb;
+        font-family: Inter, Arial, sans-serif;
+      }
+      main {
+        max-width: 560px;
+        padding: 32px;
+        text-align: center;
+      }
+      h1 { margin: 0 0 12px; font-size: 28px; }
+      p { margin: 0; color: #a7b0c0; line-height: 1.6; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Preview active</h1>
+      <p>Le mode secours affiche ici automatiquement toute page index.html créée par l’agent.</p>
+    </main>
+  </body>
+</html>`,
+  );
+}
+
+function revokeFallbackObjectUrls() {
+  for (const url of fallbackObjectUrls) {
+    URL.revokeObjectURL(url);
+  }
+  fallbackObjectUrls = [];
+}
+
+function getMimeType(path: string) {
+  if (path.endsWith(".html")) return "text/html";
+  if (path.endsWith(".css")) return "text/css";
+  if (path.endsWith(".js") || path.endsWith(".mjs") || path.endsWith(".ts") || path.endsWith(".tsx")) return "text/javascript";
+  if (path.endsWith(".json")) return "application/json";
+  if (path.endsWith(".svg")) return "image/svg+xml";
+  if (path.endsWith(".md") || path.endsWith(".txt")) return "text/plain";
+  return "text/plain";
+}
+
+function normalizePath(p: string): string {
+  let path = p.trim();
+  path = path.replace(/^\/+((repo|home\/[^/]+|workspace|app))\/?/, "/");
+  if (!path.startsWith("/")) path = "/" + path;
+  return path;
+}
+
+function resolveLocalFile(target: string) {
+  const normalized = normalizePath(target);
+  return fallbackFiles.has(normalized) ? normalized : null;
+}
+
+function createFallbackAssetUrl(path: string) {
+  const content = fallbackFiles.get(path);
+  if (content == null) return null;
+
+  const blob = new Blob([content], { type: getMimeType(path) });
+  const url = URL.createObjectURL(blob);
+  fallbackObjectUrls.push(url);
+  return url;
+}
+
+function buildFallbackPreviewDocument() {
+  if (typeof window === "undefined") return null;
+
+  const entry = ["/index.html", "/public/index.html", "/src/index.html"].find((candidate) => fallbackFiles.has(candidate));
+  if (!entry) return null;
+
+  revokeFallbackObjectUrls();
+
+  let html = fallbackFiles.get(entry) ?? null;
+  if (!html) return null;
+
+  html = html.replace(/\b(href|src)=(["'])([^"']+)\2/gi, (full, attr, quote, rawPath: string) => {
+    if (/^(https?:|data:|blob:|mailto:|tel:|#)/i.test(rawPath)) return full;
+    const normalized = rawPath.startsWith("/") ? rawPath : `/${rawPath.replace(/^\.\//, "")}`;
+    const localFile = resolveLocalFile(normalized);
+    if (!localFile) return full;
+    const url = createFallbackAssetUrl(localFile);
+    return url ? `${attr}=${quote}${url}${quote}` : full;
+  });
+
+  return html;
+}
+
+function refreshFallbackPreview() {
+  fallbackPreviewDocument = buildFallbackPreviewDocument();
+}
+
+function enableFallback(reason?: unknown) {
+  sandboxMode = "fallback";
+  seedFallbackFiles();
+  if (reason) {
+    bootError = reason instanceof Error ? reason.message : String(reason);
+  }
+  refreshFallbackPreview();
+}
+
+export async function getContainer(): Promise<WebContainer | null> {
   if (instance) return instance;
   if (bootPromise) return bootPromise;
+
+  if (!supportsWebContainer()) {
+    enableFallback(
+      "Mode de secours activé : crossOriginIsolated est absent. WebContainer ne peut pas démarrer dans ce contexte.",
+    );
+    return null;
+  }
+
   bootPromise = (async () => {
-    const { WebContainer } = await loadWebContainerModule();
-    const wc = await WebContainer.boot();
-    await wc.mount(initialFiles);
-    wc.on("server-ready", (_port, url) => {
-      lastUrl = url;
-      urlListeners.forEach((cb) => cb(url));
-    });
-    instance = wc;
-    return wc;
+    try {
+      const { WebContainer } = await loadWebContainerModule();
+      const wc = await WebContainer.boot();
+      await wc.mount(initialFiles);
+      wc.on("server-ready", (_port, url) => {
+        lastUrl = url;
+        urlListeners.forEach((cb) => cb(url));
+      });
+      sandboxMode = "webcontainer";
+      bootError = null;
+      instance = wc;
+      return wc;
+    } catch (error) {
+      enableFallback(error);
+      return null;
+    }
   })();
+
   return bootPromise;
+}
+
+export function getSandboxMode(): SandboxMode {
+  return sandboxMode;
+}
+
+export function getBootError(): string | null {
+  return bootError;
+}
+
+export function getPreviewDocument(): string | null {
+  return sandboxMode === "fallback" ? fallbackPreviewDocument : null;
 }
 
 export function onPreviewUrl(cb: (url: string) => void): () => void {
@@ -67,16 +276,6 @@ export function getLastPreviewUrl(): string | null {
   return lastUrl;
 }
 
-// Convertit un chemin absolu (/repo/foo.txt, /home/x.js) en chemin relatif
-// pour le FS du WebContainer (qui s'enracine à /).
-function normalizePath(p: string): string {
-  let path = p.trim();
-  // retire un éventuel /repo, /home/runner, etc.
-  path = path.replace(/^\/+(repo|home\/[^/]+|workspace|app)\/?/, "/");
-  if (!path.startsWith("/")) path = "/" + path;
-  return path;
-}
-
 async function ensureDir(wc: WebContainer, filePath: string) {
   const dir = filePath.split("/").slice(0, -1).join("/");
   if (!dir || dir === "/") return;
@@ -84,15 +283,29 @@ async function ensureDir(wc: WebContainer, filePath: string) {
 }
 
 export async function writeFile(path: string, contents: string): Promise<void> {
-  const wc = await getContainer();
   const p = normalizePath(path);
+  const wc = await getContainer();
+
+  if (!wc || sandboxMode === "fallback") {
+    fallbackFiles.set(p, contents);
+    refreshFallbackPreview();
+    return;
+  }
+
   await ensureDir(wc, p);
   await wc.fs.writeFile(p, contents);
 }
 
 export async function readFile(path: string): Promise<string> {
-  const wc = await getContainer();
   const p = normalizePath(path);
+  const wc = await getContainer();
+
+  if (!wc || sandboxMode === "fallback") {
+    const content = fallbackFiles.get(p);
+    if (content == null) throw new Error(`Fichier introuvable: ${p}`);
+    return content;
+  }
+
   return await wc.fs.readFile(p, "utf-8");
 }
 
@@ -106,10 +319,18 @@ export async function fileExists(path: string): Promise<boolean> {
 }
 
 export async function listFiles(dir = "/"): Promise<string[]> {
+  const normalizedDir = normalizePath(dir);
   const wc = await getContainer();
+
+  if (!wc || sandboxMode === "fallback") {
+    return [...fallbackFiles.keys()].filter((file) => file.startsWith(normalizedDir)).sort();
+  }
+
+  const container = wc;
+
   const out: string[] = [];
   async function walk(d: string) {
-    const entries = await wc.fs.readdir(d, { withFileTypes: true });
+    const entries = await container.fs.readdir(d, { withFileTypes: true });
     for (const e of entries) {
       const full = (d === "/" ? "" : d) + "/" + e.name;
       if (e.isDirectory()) {
@@ -120,7 +341,7 @@ export async function listFiles(dir = "/"): Promise<string[]> {
       }
     }
   }
-  await walk(dir);
+  await walk(normalizedDir);
   return out.sort();
 }
 
@@ -129,9 +350,21 @@ export interface RunResult {
   output: string;
 }
 
-// Exécute une commande shell. On la passe par jsh -c "..." pour gérer pipes/&&.
 export async function runCommand(command: string, opts: { background?: boolean } = {}): Promise<RunResult> {
   const wc = await getContainer();
+
+  if (!wc || sandboxMode === "fallback") {
+    refreshFallbackPreview();
+    return {
+      exitCode: 0,
+      output: [
+        `Mode de secours sans WebContainer : commande simulée${opts.background ? " en arrière-plan" : ""}.`,
+        `Commande: ${command}`,
+        "Les fichiers restent modifiables et la preview statique s'affiche dès qu'un index.html existe.",
+      ].join("\n"),
+    };
+  }
+
   const proc = await wc.spawn("jsh", ["-c", command]);
   let output = "";
   const reader = proc.output.getReader();
@@ -145,8 +378,6 @@ export async function runCommand(command: string, opts: { background?: boolean }
   })();
 
   if (opts.background) {
-    // On ne wait pas — le serveur tourne en arrière-plan.
-    // server-ready sera émis quand un port s'ouvre.
     void pump;
     return { exitCode: 0, output: "(background) " + command };
   }
@@ -156,8 +387,7 @@ export async function runCommand(command: string, opts: { background?: boolean }
   return { exitCode, output };
 }
 
-// Détecte si une commande est un serveur long-running pour la lancer en bg.
 export function isServerCommand(cmd: string): boolean {
   return /\b(npm|bun|pnpm|yarn|node)\s+(run\s+)?(dev|start|serve)\b/.test(cmd) ||
-         /\bnode\s+\S+\.js\b/.test(cmd) && /server|listen/.test(cmd);
+    (/\bnode\s+\S+\.js\b/.test(cmd) && /server|listen/.test(cmd));
 }
