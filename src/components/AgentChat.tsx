@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   type ChatMessage,
   type LMStudioConfig,
+  type Provider,
   DEFAULT_LMSTUDIO_CONFIG,
+  DEFAULT_OPENAI_CONFIG,
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
-  normalizeBaseUrl,
+  buildEndpoint,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
@@ -34,22 +36,28 @@ export function AgentChat() {
     try {
       const headers: Record<string, string> = {};
       if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
-      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/api/v1/models`, { headers });
+      const r = await fetch(buildEndpoint(config, "models"), { headers });
       setStatus(r.ok ? "ok" : "ko");
-      if (!r.ok) setError(`HTTP ${r.status} sur /api/v1/models`);
+      if (!r.ok) setError(`HTTP ${r.status} sur /models`);
     } catch (e) {
       setStatus("ko");
       const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
       const isHttp = /^http:\/\//i.test(config.baseUrl);
       if (isHttps && isHttp) {
         setError(
-          "Mixed Content bloqué : la preview Lovable est en HTTPS mais LM Studio est en HTTP. " +
-          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer LM Studio via HTTPS (ngrok/cloudflared), (3) utiliser un reverse proxy HTTPS."
+          "Mixed Content bloqué : la preview Lovable est en HTTPS mais le backend est en HTTP. " +
+          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer via HTTPS (ngrok/cloudflared), (3) utiliser OpenAI."
         );
       } else {
         setError(e instanceof Error ? e.message : "Connexion impossible (CORS ? pare-feu ? IP joignable ?)");
       }
     }
+  }
+
+  function switchProvider(p: Provider) {
+    setConfig(p === "openai" ? DEFAULT_OPENAI_CONFIG : DEFAULT_LMSTUDIO_CONFIG);
+    setStatus("unknown");
+    setError(null);
   }
 
   async function send() {
@@ -88,33 +96,59 @@ export function AgentChat() {
           <div>
             <h1 className="text-xl font-semibold text-foreground">Replit Assistant Clone</h1>
             <p className="text-xs text-muted-foreground">
-              System prompt + {REPLIT_TOOLS.length} tools — fidélité 100% aux fichiers fournis · Backend : LM Studio
+              System prompt + {REPLIT_TOOLS.length} tools — backend : {config.provider === "openai" ? "OpenAI" : "LM Studio"}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={status === "ok" ? "default" : status === "ko" ? "destructive" : "secondary"}>
-              {status === "ok" ? "LM Studio OK" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
+              {status === "ok" ? "Connecté" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
             </Badge>
             <Button size="sm" variant="outline" onClick={ping}>Tester</Button>
             <Button size="sm" variant="ghost" onClick={reset}>Reset</Button>
           </div>
         </div>
+
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={config.provider === "lmstudio" ? "default" : "outline"}
+            onClick={() => switchProvider("lmstudio")}
+          >
+            LM Studio
+          </Button>
+          <Button
+            size="sm"
+            variant={config.provider === "openai" ? "default" : "outline"}
+            onClick={() => switchProvider("openai")}
+          >
+            OpenAI
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr]">
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Base URL LM Studio</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Base URL {config.provider === "openai" ? "OpenAI" : "LM Studio"}
+            </label>
             <Input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
-            <Input value={config.model} onChange={(e) => setConfig({ ...config, model: e.target.value })} />
+            <Input
+              value={config.model}
+              onChange={(e) => setConfig({ ...config, model: e.target.value })}
+              placeholder={config.provider === "openai" ? "gpt-4o-mini" : "google/gemma-4-4b"}
+            />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">API Key (optionnel)</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              API Key {config.provider === "openai" ? "(requise)" : "(optionnel)"}
+            </label>
             <Input
               type="password"
               value={config.apiKey ?? ""}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder="sk-lm-..."
+              placeholder={config.provider === "openai" ? "sk-..." : "sk-lm-..."}
             />
           </div>
         </div>

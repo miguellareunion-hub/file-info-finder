@@ -212,11 +212,21 @@ export interface ToolCall {
   function: { name: string; arguments: string };
 }
 
+export type Provider = "lmstudio" | "openai";
+
 export interface LMStudioConfig {
+  provider: Provider;
   baseUrl: string;
   model: string;
   apiKey?: string;
 }
+
+export const DEFAULT_OPENAI_CONFIG: LMStudioConfig = {
+  provider: "openai",
+  baseUrl: "https://api.openai.com",
+  model: "gpt-4o-mini",
+  apiKey: "",
+};
 
 // Normalise une URL saisie par l'utilisateur :
 // - ajoute http:// si absent
@@ -233,10 +243,18 @@ export function normalizeBaseUrl(raw: string): string {
 }
 
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
+  provider: "lmstudio",
   baseUrl: "http://88.186.220.76:50000",
   model: "google/gemma-4-4b",
   apiKey: "sk-lm-WPrqiEzM:MRKss7IoEmFQw62OnCrF",
 };
+
+export function buildEndpoint(config: LMStudioConfig, path: "chat/completions" | "models"): string {
+  const base = normalizeBaseUrl(config.baseUrl);
+  // OpenAI utilise /v1, LM Studio utilise /api/v1 (mais accepte /v1 aussi)
+  const prefix = config.provider === "openai" ? "/v1" : "/api/v1";
+  return `${base}${prefix}/${path}`;
+}
 
 interface CompletionResponse {
   choices: Array<{
@@ -253,7 +271,7 @@ export async function callLMStudio(
   config: LMStudioConfig,
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
-  const url = `${normalizeBaseUrl(config.baseUrl)}/api/v1/chat/completions`;
+  const url = buildEndpoint(config, "chat/completions");
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
   const resp = await fetch(url, {
@@ -271,7 +289,7 @@ export async function callLMStudio(
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => "");
-    throw new Error(`LM Studio HTTP ${resp.status}: ${text || resp.statusText}`);
+    throw new Error(`${config.provider === "openai" ? "OpenAI" : "LM Studio"} HTTP ${resp.status}: ${text || resp.statusText}`);
   }
 
   const json = (await resp.json()) as CompletionResponse;
