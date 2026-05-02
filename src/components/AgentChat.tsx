@@ -8,10 +8,12 @@ import { Badge } from "@/components/ui/badge";
 import {
   type ChatMessage,
   type LMStudioConfig,
+  type Provider,
   DEFAULT_LMSTUDIO_CONFIG,
+  DEFAULT_OPENAI_CONFIG,
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
-  normalizeBaseUrl,
+  buildEndpoint,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
