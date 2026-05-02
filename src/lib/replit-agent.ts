@@ -217,8 +217,22 @@ export interface LMStudioConfig {
   model: string;
 }
 
+// Normalise une URL saisie par l'utilisateur :
+// - ajoute http:// si absent
+// - retire les / finaux
+// - retire un éventuel suffixe /v1 (on l'ajoute nous-mêmes)
+export function normalizeBaseUrl(raw: string): string {
+  let u = (raw || "").trim();
+  // Corrige les "http://http://..."
+  u = u.replace(/^(https?:\/\/)+/i, (m) => m.match(/https?:\/\//i)![0]);
+  if (!/^https?:\/\//i.test(u)) u = "http://" + u;
+  u = u.replace(/\/+$/, "");
+  u = u.replace(/\/v1$/i, "");
+  return u;
+}
+
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
-  baseUrl: "http://192.168.1.7:1234",
+  baseUrl: "http://88.186.220.76:50000",
   model: "google/gemma-4-e4b",
 };
 
