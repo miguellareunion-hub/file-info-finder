@@ -11,6 +11,7 @@ import {
   DEFAULT_LMSTUDIO_CONFIG,
   REPLIT_SYSTEM_PROMPT,
   REPLIT_TOOLS,
+  normalizeBaseUrl,
   runAgentLoop,
 } from "@/lib/replit-agent";
 
