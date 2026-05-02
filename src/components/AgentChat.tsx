@@ -138,7 +138,11 @@ export function AgentChat() {
             <label className="text-xs font-medium text-muted-foreground">
               Base URL {config.provider === "openai" ? "OpenAI" : "LM Studio"}
             </label>
-            <Input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} />
+            <Input
+              value={config.baseUrl}
+              onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
+              onBlur={(e) => setConfig({ ...config, baseUrl: normalizeBaseUrl(e.target.value) })}
+            />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
