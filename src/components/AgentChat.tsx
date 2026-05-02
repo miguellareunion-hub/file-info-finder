@@ -96,33 +96,59 @@ export function AgentChat() {
           <div>
             <h1 className="text-xl font-semibold text-foreground">Replit Assistant Clone</h1>
             <p className="text-xs text-muted-foreground">
-              System prompt + {REPLIT_TOOLS.length} tools — fidélité 100% aux fichiers fournis · Backend : LM Studio
+              System prompt + {REPLIT_TOOLS.length} tools — backend : {config.provider === "openai" ? "OpenAI" : "LM Studio"}
             </p>
           </div>
           <div className="flex items-center gap-2">
             <Badge variant={status === "ok" ? "default" : status === "ko" ? "destructive" : "secondary"}>
-              {status === "ok" ? "LM Studio OK" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
+              {status === "ok" ? "Connecté" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
             </Badge>
             <Button size="sm" variant="outline" onClick={ping}>Tester</Button>
             <Button size="sm" variant="ghost" onClick={reset}>Reset</Button>
           </div>
         </div>
+
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant={config.provider === "lmstudio" ? "default" : "outline"}
+            onClick={() => switchProvider("lmstudio")}
+          >
+            LM Studio
+          </Button>
+          <Button
+            size="sm"
+            variant={config.provider === "openai" ? "default" : "outline"}
+            onClick={() => switchProvider("openai")}
+          >
+            OpenAI
+          </Button>
+        </div>
+
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr]">
           <div>
-            <label className="text-xs font-medium text-muted-foreground">Base URL LM Studio</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              Base URL {config.provider === "openai" ? "OpenAI" : "LM Studio"}
+            </label>
             <Input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
-            <Input value={config.model} onChange={(e) => setConfig({ ...config, model: e.target.value })} />
+            <Input
+              value={config.model}
+              onChange={(e) => setConfig({ ...config, model: e.target.value })}
+              placeholder={config.provider === "openai" ? "gpt-4o-mini" : "google/gemma-4-4b"}
+            />
           </div>
           <div className="sm:col-span-2">
-            <label className="text-xs font-medium text-muted-foreground">API Key (optionnel)</label>
+            <label className="text-xs font-medium text-muted-foreground">
+              API Key {config.provider === "openai" ? "(requise)" : "(optionnel)"}
+            </label>
             <Input
               type="password"
               value={config.apiKey ?? ""}
               onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
-              placeholder="sk-lm-..."
+              placeholder={config.provider === "openai" ? "sk-..." : "sk-lm-..."}
             />
           </div>
         </div>
