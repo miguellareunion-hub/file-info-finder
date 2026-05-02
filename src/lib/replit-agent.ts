@@ -253,7 +253,7 @@ export async function callLMStudio(
   config: LMStudioConfig,
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
-  const url = `${normalizeBaseUrl(config.baseUrl)}/v1/chat/completions`;
+  const url = `${normalizeBaseUrl(config.baseUrl)}/api/v1/chat/completions`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
   const resp = await fetch(url, {
