@@ -248,15 +248,14 @@ export function normalizeBaseUrl(raw: string): string {
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
   provider: "lmstudio",
   baseUrl: "https://nickname-autograph-helpline.ngrok-free.dev",
-  model: "google/gemma-4-4b",
+  model: "google/gemma-4-e4b",
   apiKey: "",
 };
 
 export function buildEndpoint(config: LMStudioConfig, path: "chat/completions" | "models"): string {
   const base = normalizeBaseUrl(config.baseUrl);
-  // OpenAI utilise /v1, LM Studio utilise /api/v1 (mais accepte /v1 aussi)
-  const prefix = config.provider === "openai" ? "/v1" : "/api/v1";
-  return `${base}${prefix}/${path}`;
+  // Les deux providers exposent /v1/...
+  return `${base}/v1/${path}`;
 }
 
 interface CompletionResponse {
