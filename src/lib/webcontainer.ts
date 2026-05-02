@@ -253,9 +253,11 @@ export async function listFiles(dir = "/"): Promise<string[]> {
     return [...fallbackFiles.keys()].filter((file) => file.startsWith(normalizedDir)).sort();
   }
 
+  const container = wc;
+
   const out: string[] = [];
   async function walk(d: string) {
-    const entries = await wc.fs.readdir(d, { withFileTypes: true });
+    const entries = await container.fs.readdir(d, { withFileTypes: true });
     for (const e of entries) {
       const full = (d === "/" ? "" : d) + "/" + e.name;
       if (e.isDirectory()) {
