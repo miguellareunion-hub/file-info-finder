@@ -221,13 +221,13 @@ export interface LMStudioConfig {
 // Normalise une URL saisie par l'utilisateur :
 // - ajoute http:// si absent
 // - retire les / finaux
-// - retire un éventuel suffixe /v1 (on l'ajoute nous-mêmes)
+// - retire un éventuel suffixe /v1 ou /api/v1 (on l'ajoute nous-mêmes)
 export function normalizeBaseUrl(raw: string): string {
   let u = (raw || "").trim();
-  // Corrige les "http://http://..."
   u = u.replace(/^(https?:\/\/)+/i, (m) => m.match(/https?:\/\//i)![0]);
   if (!/^https?:\/\//i.test(u)) u = "http://" + u;
   u = u.replace(/\/+$/, "");
+  u = u.replace(/\/api\/v1$/i, "");
   u = u.replace(/\/v1$/i, "");
   return u;
 }
@@ -253,7 +253,7 @@ export async function callLMStudio(
   config: LMStudioConfig,
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
-  const url = `${normalizeBaseUrl(config.baseUrl)}/v1/chat/completions`;
+  const url = `${normalizeBaseUrl(config.baseUrl)}/api/v1/chat/completions`;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
   const resp = await fetch(url, {
