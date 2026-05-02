@@ -215,6 +215,7 @@ export interface ToolCall {
 export interface LMStudioConfig {
   baseUrl: string;
   model: string;
+  apiKey?: string;
 }
 
 // Normalise une URL saisie par l'utilisateur :
