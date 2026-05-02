@@ -90,6 +90,12 @@ export function AgentChat() {
     setError(null);
   }
 
+  function resetConfig() {
+    setConfig(config.provider === "openai" ? DEFAULT_OPENAI_CONFIG : DEFAULT_LMSTUDIO_CONFIG);
+    setStatus("unknown");
+    setError(null);
+  }
+
   return (
     <div className="mx-auto flex h-screen max-w-5xl flex-col gap-4 p-4">
       <header className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
