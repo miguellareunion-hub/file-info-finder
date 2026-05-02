@@ -32,7 +32,9 @@ export function AgentChat() {
     setStatus("unknown");
     setError(null);
     try {
-      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`);
+      const headers: Record<string, string> = {};
+      if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
+      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/v1/models`, { headers });
       setStatus(r.ok ? "ok" : "ko");
       if (!r.ok) setError(`HTTP ${r.status} sur /v1/models`);
     } catch (e) {
@@ -105,6 +107,15 @@ export function AgentChat() {
           <div>
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
             <Input value={config.model} onChange={(e) => setConfig({ ...config, model: e.target.value })} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">API Key (optionnel)</label>
+            <Input
+              type="password"
+              value={config.apiKey ?? ""}
+              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              placeholder="sk-lm-..."
+            />
           </div>
         </div>
       </header>

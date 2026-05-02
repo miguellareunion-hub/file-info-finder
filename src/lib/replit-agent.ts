@@ -215,6 +215,7 @@ export interface ToolCall {
 export interface LMStudioConfig {
   baseUrl: string;
   model: string;
+  apiKey?: string;
 }
 
 // Normalise une URL saisie par l'utilisateur :
@@ -234,6 +235,7 @@ export function normalizeBaseUrl(raw: string): string {
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
   baseUrl: "http://88.186.220.76:50000",
   model: "google/gemma-4-4b",
+  apiKey: "sk-lm-WPrqiEzM:MRKss7IoEmFQw62OnCrF",
 };
 
 interface CompletionResponse {
@@ -252,9 +254,11 @@ export async function callLMStudio(
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
   const url = `${normalizeBaseUrl(config.baseUrl)}/v1/chat/completions`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       model: config.model,
       messages,
