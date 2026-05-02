@@ -36,22 +36,28 @@ export function AgentChat() {
     try {
       const headers: Record<string, string> = {};
       if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
-      const r = await fetch(`${normalizeBaseUrl(config.baseUrl)}/api/v1/models`, { headers });
+      const r = await fetch(buildEndpoint(config, "models"), { headers });
       setStatus(r.ok ? "ok" : "ko");
-      if (!r.ok) setError(`HTTP ${r.status} sur /api/v1/models`);
+      if (!r.ok) setError(`HTTP ${r.status} sur /models`);
     } catch (e) {
       setStatus("ko");
       const isHttps = typeof window !== "undefined" && window.location.protocol === "https:";
       const isHttp = /^http:\/\//i.test(config.baseUrl);
       if (isHttps && isHttp) {
         setError(
-          "Mixed Content bloqué : la preview Lovable est en HTTPS mais LM Studio est en HTTP. " +
-          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer LM Studio via HTTPS (ngrok/cloudflared), (3) utiliser un reverse proxy HTTPS."
+          "Mixed Content bloqué : la preview Lovable est en HTTPS mais le backend est en HTTP. " +
+          "Solutions : (1) ouvrir l'app en HTTP en local, (2) exposer via HTTPS (ngrok/cloudflared), (3) utiliser OpenAI."
         );
       } else {
         setError(e instanceof Error ? e.message : "Connexion impossible (CORS ? pare-feu ? IP joignable ?)");
       }
     }
+  }
+
+  function switchProvider(p: Provider) {
+    setConfig(p === "openai" ? DEFAULT_OPENAI_CONFIG : DEFAULT_LMSTUDIO_CONFIG);
+    setStatus("unknown");
+    setError(null);
   }
 
   async function send() {
