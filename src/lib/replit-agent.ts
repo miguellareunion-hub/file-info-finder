@@ -254,9 +254,11 @@ export async function callLMStudio(
   messages: ChatMessage[],
 ): Promise<CompletionResponse["choices"][number]["message"]> {
   const url = `${normalizeBaseUrl(config.baseUrl)}/v1/chat/completions`;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
   const resp = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({
       model: config.model,
       messages,
