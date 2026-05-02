@@ -108,6 +108,15 @@ export function AgentChat() {
             <label className="text-xs font-medium text-muted-foreground">Modèle</label>
             <Input value={config.model} onChange={(e) => setConfig({ ...config, model: e.target.value })} />
           </div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-muted-foreground">API Key (optionnel)</label>
+            <Input
+              type="password"
+              value={config.apiKey ?? ""}
+              onChange={(e) => setConfig({ ...config, apiKey: e.target.value })}
+              placeholder="sk-lm-..."
+            />
+          </div>
         </div>
       </header>
 
