@@ -1,9 +1,17 @@
-import { WebContainer, type FileSystemTree } from "@webcontainer/api";
+import type { WebContainer, FileSystemTree } from "@webcontainer/api";
 
 let bootPromise: Promise<WebContainer> | null = null;
 let instance: WebContainer | null = null;
 const urlListeners = new Set<(url: string) => void>();
 let lastUrl: string | null = null;
+
+async function loadWebContainerModule() {
+  if (typeof window === "undefined") {
+    throw new Error("WebContainer n'est disponible que dans le navigateur.");
+  }
+
+  return import("@webcontainer/api");
+}
 
 const initialFiles: FileSystemTree = {
   "package.json": {
@@ -36,6 +44,7 @@ export async function getContainer(): Promise<WebContainer> {
   if (instance) return instance;
   if (bootPromise) return bootPromise;
   bootPromise = (async () => {
+    const { WebContainer } = await loadWebContainerModule();
     const wc = await WebContainer.boot();
     await wc.mount(initialFiles);
     wc.on("server-ready", (_port, url) => {
