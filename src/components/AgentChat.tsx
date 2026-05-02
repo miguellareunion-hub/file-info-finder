@@ -1,0 +1,191 @@
+import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  type ChatMessage,
+  type LMStudioConfig,
+  DEFAULT_LMSTUDIO_CONFIG,
+  REPLIT_SYSTEM_PROMPT,
+  REPLIT_TOOLS,
+  runAgentLoop,
+} from "@/lib/replit-agent";
+
+export function AgentChat() {
+  const [config, setConfig] = useState<LMStudioConfig>(DEFAULT_LMSTUDIO_CONFIG);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"unknown" | "ok" | "ko">("unknown");
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+  }, [messages, busy]);
+
+  async function ping() {
+    setStatus("unknown");
+    try {
+      const r = await fetch(`${config.baseUrl.replace(/\/$/, "")}/v1/models`);
+      setStatus(r.ok ? "ok" : "ko");
+    } catch {
+      setStatus("ko");
+    }
+  }
+
+  async function send() {
+    const text = input.trim();
+    if (!text || busy) return;
+    setError(null);
+    setInput("");
+
+    const userMsg: ChatMessage = { role: "user", content: text };
+    const base: ChatMessage[] = [
+      { role: "system", content: REPLIT_SYSTEM_PROMPT },
+      ...messages,
+      userMsg,
+    ];
+    setMessages((prev) => [...prev, userMsg]);
+    setBusy(true);
+
+    try {
+      await runAgentLoop(config, base, (m) => setMessages((prev) => [...prev, m]));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unknown error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function reset() {
+    setMessages([]);
+    setError(null);
+  }
+
+  return (
+    <div className="mx-auto flex h-screen max-w-5xl flex-col gap-4 p-4">
+      <header className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h1 className="text-xl font-semibold text-foreground">Replit Assistant Clone</h1>
+            <p className="text-xs text-muted-foreground">
+              System prompt + {REPLIT_TOOLS.length} tools — fidélité 100% aux fichiers fournis · Backend : LM Studio
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Badge variant={status === "ok" ? "default" : status === "ko" ? "destructive" : "secondary"}>
+              {status === "ok" ? "LM Studio OK" : status === "ko" ? "Inaccessible" : "Statut inconnu"}
+            </Badge>
+            <Button size="sm" variant="outline" onClick={ping}>Tester</Button>
+            <Button size="sm" variant="ghost" onClick={reset}>Reset</Button>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[2fr_1fr]">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Base URL LM Studio</label>
+            <Input value={config.baseUrl} onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })} />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Modèle</label>
+            <Input value={config.model} onChange={(e) => setConfig({ ...config, model: e.target.value })} />
+          </div>
+        </div>
+      </header>
+
+      <div ref={scrollRef} className="flex-1 overflow-y-auto rounded-lg border border-border bg-background p-4">
+        {messages.length === 0 && (
+          <div className="flex h-full items-center justify-center text-center text-sm text-muted-foreground">
+            <div className="max-w-md">
+              <p className="mb-2 font-medium text-foreground">Démarre une conversation avec l'agent.</p>
+              <p>Il se comporte exactement comme le Replit Assistant : il propose des changements de fichiers, des commandes shell, et peut appeler ses 18 outils.</p>
+              <p className="mt-2 text-xs">Note : l'app doit tourner sur le même réseau que LM Studio (192.168.1.7).</p>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {messages.map((m, i) => (
+            <MessageBubble key={i} msg={m} />
+          ))}
+          {busy && <div className="text-xs italic text-muted-foreground">L'agent réfléchit…</div>}
+        </div>
+      </div>
+
+      {error && (
+        <Card className="border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </Card>
+      )}
+
+      <div className="flex gap-2">
+        <Textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void send();
+            }
+          }}
+          placeholder="Demande quelque chose à l'assistant… (Entrée pour envoyer, Shift+Entrée pour nouvelle ligne)"
+          rows={2}
+          className="flex-1"
+        />
+        <Button onClick={() => void send()} disabled={busy || !input.trim()}>
+          Envoyer
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function MessageBubble({ msg }: { msg: ChatMessage }) {
+  if (msg.role === "user") {
+    return (
+      <div className="flex justify-end">
+        <div className="max-w-[80%] rounded-lg bg-primary px-4 py-2 text-primary-foreground">
+          <div className="whitespace-pre-wrap text-sm">{msg.content}</div>
+        </div>
+      </div>
+    );
+  }
+  if (msg.role === "assistant") {
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-[90%] rounded-lg border border-border bg-card px-4 py-3 text-card-foreground">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">Assistant</div>
+          {msg.content && (
+            <div className="prose prose-sm max-w-none text-sm dark:prose-invert">
+              <ReactMarkdown>{msg.content}</ReactMarkdown>
+            </div>
+          )}
+          {msg.tool_calls?.map((tc) => (
+            <div key={tc.id} className="mt-2 rounded border border-border bg-muted p-2 font-mono text-xs">
+              <div className="font-semibold text-foreground">→ tool call: {tc.function.name}</div>
+              <pre className="mt-1 overflow-x-auto whitespace-pre-wrap text-muted-foreground">{tc.function.arguments}</pre>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  if (msg.role === "tool") {
+    return (
+      <div className="flex justify-start">
+        <div className="max-w-[90%] rounded-lg border border-dashed border-border bg-muted/50 px-3 py-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            tool result · {msg.name}
+          </div>
+          <pre className="overflow-x-auto whitespace-pre-wrap font-mono text-xs text-muted-foreground">
+            {msg.content}
+          </pre>
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
