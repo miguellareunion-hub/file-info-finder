@@ -115,7 +115,7 @@ export function AgentChat() {
             <div className="max-w-md">
               <p className="mb-2 font-medium text-foreground">Démarre une conversation avec l'agent.</p>
               <p>Il se comporte exactement comme le Replit Assistant : il propose des changements de fichiers, des commandes shell, et peut appeler ses 18 outils.</p>
-              <p className="mt-2 text-xs">Note : l'app doit tourner sur le même réseau que LM Studio (192.168.1.7).</p>
+              <p className="mt-2 text-xs">Note : LM Studio doit être joignable depuis le navigateur (CORS activé). En HTTPS, l'IP HTTP publique sera bloquée par Mixed Content — utilise ngrok/cloudflared pour exposer en HTTPS.</p>
             </div>
           </div>
         )}
