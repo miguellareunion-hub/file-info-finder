@@ -237,6 +237,9 @@ export function normalizeBaseUrl(raw: string): string {
   u = u.replace(/^(https?:\/\/)+/i, (m) => m.match(/https?:\/\//i)![0]);
   if (!/^https?:\/\//i.test(u)) u = "http://" + u;
   u = u.replace(/\/+$/, "");
+  // Retire les suffixes d'endpoints courants si l'utilisateur a collé une URL complète
+  u = u.replace(/\/(api\/)?v1\/chat\/completions$/i, "");
+  u = u.replace(/\/(api\/)?v1\/models$/i, "");
   u = u.replace(/\/api\/v1$/i, "");
   u = u.replace(/\/v1$/i, "");
   return u;
@@ -244,9 +247,9 @@ export function normalizeBaseUrl(raw: string): string {
 
 export const DEFAULT_LMSTUDIO_CONFIG: LMStudioConfig = {
   provider: "lmstudio",
-  baseUrl: "http://88.186.220.76:50000",
+  baseUrl: "https://nickname-autograph-helpline.ngrok-free.dev",
   model: "google/gemma-4-4b",
-  apiKey: "sk-lm-WPrqiEzM:MRKss7IoEmFQw62OnCrF",
+  apiKey: "",
 };
 
 export function buildEndpoint(config: LMStudioConfig, path: "chat/completions" | "models"): string {
