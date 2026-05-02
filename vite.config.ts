@@ -6,4 +6,20 @@
 // You can pass additional config via defineConfig({ vite: { ... } }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
-export default defineConfig();
+// WebContainers requires Cross-Origin Isolation (COOP+COEP headers).
+export default defineConfig({
+  vite: {
+    server: {
+      headers: {
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+      },
+    },
+    preview: {
+      headers: {
+        "Cross-Origin-Embedder-Policy": "require-corp",
+        "Cross-Origin-Opener-Policy": "same-origin",
+      },
+    },
+  },
+});
