@@ -45,43 +45,6 @@ const initialFiles: FileSystemTree = {
       contents: "# Sandbox WebContainer\n\nL'agent Replit Assistant a accès à ce système de fichiers Node.js.\n",
     },
   },
-  "index.html": {
-    file: {
-      contents: `<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Preview prête</title>
-    <style>
-      :root { color-scheme: dark; }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: #0f1115;
-        color: #f5f7fb;
-        font-family: Inter, Arial, sans-serif;
-      }
-      main {
-        max-width: 560px;
-        padding: 32px;
-        text-align: center;
-      }
-      h1 { margin: 0 0 12px; font-size: 28px; }
-      p { margin: 0; color: #a7b0c0; line-height: 1.6; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Preview active</h1>
-      <p>Le mode secours affiche ici automatiquement toute page index.html créée par l’agent.</p>
-    </main>
-  </body>
-</html>`,
-    },
-  },
 };
 
 function supportsWebContainer() {
@@ -108,42 +71,6 @@ function seedFallbackFiles() {
     "// Sandbox prêt. L'agent peut créer/modifier des fichiers ici via les outils.\nconsole.log('WebContainer ready');\n",
   );
   fallbackFiles.set("/README.md", "# Sandbox WebContainer\n\nL'agent Replit Assistant a accès à ce système de fichiers Node.js.\n");
-  fallbackFiles.set(
-    "/index.html",
-    `<!doctype html>
-<html lang="fr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Preview prête</title>
-    <style>
-      :root { color-scheme: dark; }
-      body {
-        margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: #0f1115;
-        color: #f5f7fb;
-        font-family: Inter, Arial, sans-serif;
-      }
-      main {
-        max-width: 560px;
-        padding: 32px;
-        text-align: center;
-      }
-      h1 { margin: 0 0 12px; font-size: 28px; }
-      p { margin: 0; color: #a7b0c0; line-height: 1.6; }
-    </style>
-  </head>
-  <body>
-    <main>
-      <h1>Preview active</h1>
-      <p>Le mode secours affiche ici automatiquement toute page index.html créée par l’agent.</p>
-    </main>
-  </body>
-</html>`,
-  );
 }
 
 function revokeFallbackObjectUrls() {
