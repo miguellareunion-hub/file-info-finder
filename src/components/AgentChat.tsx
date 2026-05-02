@@ -17,7 +17,16 @@ import {
   normalizeBaseUrl,
   runAgentLoop,
 } from "@/lib/replit-agent";
-import { getContainer, listFiles, readFile, onPreviewUrl, getLastPreviewUrl } from "@/lib/webcontainer";
+import {
+  getBootError,
+  getContainer,
+  getLastPreviewUrl,
+  getPreviewDocument,
+  getSandboxMode,
+  listFiles,
+  onPreviewUrl,
+  readFile,
+} from "@/lib/webcontainer";
 import { stripProposedTags } from "@/lib/proposed-actions";
 
 export function AgentChat() {
@@ -31,7 +40,9 @@ export function AgentChat() {
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [fileContent, setFileContent] = useState<string>("");
   const [previewUrl, setPreviewUrl] = useState<string | null>(getLastPreviewUrl());
-  const [wcReady, setWcReady] = useState(false);
+  const [previewDocument, setPreviewDocument] = useState<string | null>(getPreviewDocument());
+  const [sandboxMode, setSandboxMode] = useState<"webcontainer" | "fallback">(getSandboxMode());
+  const [wcReady, setWcReady] = useState(getSandboxMode() === "webcontainer");
   const [wcError, setWcError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -40,7 +51,10 @@ export function AgentChat() {
     let unsub: (() => void) | undefined;
     getContainer()
       .then(() => {
-        setWcReady(true);
+        setSandboxMode(getSandboxMode());
+        setWcReady(getSandboxMode() === "webcontainer");
+        setWcError(getBootError());
+        setPreviewDocument(getPreviewDocument());
         return refreshFiles();
       })
       .catch((e) => setWcError(e instanceof Error ? e.message : String(e)));
@@ -53,6 +67,9 @@ export function AgentChat() {
     try {
       const list = await listFiles("/");
       setFiles(list);
+      setSandboxMode(getSandboxMode());
+      setPreviewDocument(getPreviewDocument());
+      setWcError(getBootError());
     } catch {
       // ignore
     }
@@ -136,7 +153,9 @@ export function AgentChat() {
             <h1 className="text-lg font-semibold text-foreground">Replit Assistant Clone</h1>
             <p className="text-xs text-muted-foreground">
               {REPLIT_TOOLS.length} tools · {config.provider === "openai" ? "OpenAI" : "LM Studio"} ·
-              WebContainer {wcReady ? "✓ prêt" : wcError ? "✗ KO" : "…boot"}
+              {sandboxMode === "webcontainer"
+                ? ` WebContainer ${wcReady ? "✓ prêt" : wcError ? "✗ KO" : "…boot"}`
+                : " Mode secours actif"}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -181,8 +200,10 @@ export function AgentChat() {
       </header>
 
       {wcError && (
-        <Card className="border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-          WebContainer KO : {wcError}. Requiert Chrome/Edge/Firefox + COOP/COEP (déjà configurés). Recharge la page.
+        <Card className="border-border bg-muted/40 p-3 text-sm text-foreground">
+          {sandboxMode === "fallback"
+            ? `WebContainer indisponible : ${wcError}. Le mode de secours garde maintenant les fichiers visibles et la preview fonctionne dès qu’un index.html existe.`
+            : `WebContainer KO : ${wcError}. Requiert Chrome/Edge/Firefox + COOP/COEP (déjà configurés). Recharge la page.`}
         </Card>
       )}
 
@@ -275,9 +296,18 @@ export function AgentChat() {
                 title="WebContainer preview"
                 allow="cross-origin-isolated"
               />
+            ) : previewDocument ? (
+              <iframe
+                srcDoc={previewDocument}
+                className="h-full w-full border-0"
+                title="Fallback preview"
+                sandbox="allow-scripts allow-same-origin"
+              />
             ) : (
               <div className="flex h-full items-center justify-center p-6 text-center text-sm text-muted-foreground">
-                Aucun serveur lancé. Demande à l'agent de créer + lancer un serveur (ex: <code>npm init -y && npm i express && node server.js</code>) — la preview s'affichera ici dès qu'un port s'ouvre.
+                {sandboxMode === "fallback"
+                  ? "Aucune page HTML trouvée pour l’instant. Dès que l’agent crée un fichier index.html, la preview s’affichera ici automatiquement."
+                  : "Aucun serveur lancé. Demande à l'agent de créer + lancer un serveur (ex: npm init -y && npm i express && node server.js) — la preview s'affichera ici dès qu'un port s'ouvre."}
               </div>
             )}
           </div>
