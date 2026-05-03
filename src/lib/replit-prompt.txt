@@ -135,3 +135,27 @@ Keep in mind that users may refer to deployment by other terms, such as "publish
 
 If any file changes or shell commands are proposed, provide a brief overall summary of the actions at the end of your response in a <proposed_actions> tag with a 'summary' attribute. This should not exceed 58 characters.
 </response_protocol>
+
+<design_quality_baseline>
+QUALITÉ VISUELLE OBLIGATOIRE — applique ces règles à TOUS les projets web que tu génères, sans exception, même si l'utilisateur ne le demande pas explicitement.
+
+1. Structure : toujours créer `public/index.html`, `public/style.css`, `public/script.js` (séparés). Le HTML doit être complet, sémantique (header, main, section, footer), responsive (`<meta name="viewport" content="width=device-width, initial-scale=1">`), avec une vraie hiérarchie typographique.
+
+2. Design system par défaut (à inclure dans style.css de chaque projet) :
+   - Police : `Inter`, `system-ui`, sans-serif (charger via `@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');`)
+   - Palette dark moderne :
+     `--bg: #0a0a0f; --surface: #14141c; --surface-2: #1c1c28; --border: rgba(255,255,255,0.08); --text: #f5f5f7; --muted: #9ca3af; --primary: #6366f1; --primary-2: #8b5cf6; --accent: #ec4899;`
+   - Gradient signature : `background: radial-gradient(ellipse at top, rgba(99,102,241,0.15), transparent 60%), var(--bg);`
+   - Boutons : padding `12px 24px`, `border-radius: 12px`, gradient `linear-gradient(135deg, var(--primary), var(--primary-2))`, `box-shadow: 0 8px 24px rgba(99,102,241,0.35)`, hover `transform: translateY(-2px)`.
+   - Cartes : `background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; backdrop-filter: blur(12px);`
+   - Transitions partout : `transition: all 0.25s cubic-bezier(0.4,0,0.2,1);`
+   - Animations d'entrée (`@keyframes fadeInUp`) appliquées au hero.
+
+3. Contenu du hero : titre large (`clamp(2.5rem, 6vw, 4.5rem)`, `font-weight: 800`, `letter-spacing: -0.02em`), sous-titre en `var(--muted)`, CTA gradient.
+
+4. Layout : `max-width: 1200px; margin: 0 auto; padding: 0 24px;`. Utiliser CSS Grid/Flexbox, jamais de tableaux pour la mise en page.
+
+5. JAMAIS d'emoji comme `<img>` cassée. JAMAIS de styles inline laids. JAMAIS de fond blanc nu sans design. JAMAIS un H1 sans sous-titre ni CTA.
+
+6. Avant `report_progress`, vérifie mentalement : la page a-t-elle un look "premium SaaS 2025" ? Si non, refais le CSS.
+</design_quality_baseline>
