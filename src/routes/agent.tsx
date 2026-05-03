@@ -97,9 +97,12 @@ function AgentWorkspace() {
       {/* Top bar */}
       <header className="h-12 flex items-center justify-between px-3 border-b border-neutral-800 bg-[#0e0e10] shrink-0">
         <div className="flex items-center gap-2">
-          <a href="/" className="w-7 h-7 rounded-md bg-gradient-to-br from-orange-500 to-pink-500 grid place-items-center">
+          <Link to="/" className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white" title="Retour aux projets">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <span className="w-7 h-7 rounded-md bg-gradient-to-br from-orange-500 to-pink-500 grid place-items-center">
             <Sparkles className="w-4 h-4 text-white" />
-          </a>
+          </span>
           <div className="flex items-center gap-1.5 bg-[#161618] hover:bg-[#1f1f22] cursor-pointer rounded-md px-3 py-1.5 text-sm border border-neutral-800">
             <Folder className="w-3.5 h-3.5 text-neutral-400" />
             <span className="font-medium">{projectName}</span>
