@@ -66,7 +66,7 @@ function Home() {
               ))}
               <button className="hover:text-black">Security</button>
               <button className="hover:text-black">Pricing</button>
-              <Link to="/agent" className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-3 py-1 text-sm font-medium flex items-center gap-2 transition">
+              <Link to="/agent" search={{ p: undefined }} className="bg-orange-500 hover:bg-orange-600 text-white rounded-full px-3 py-1 text-sm font-medium flex items-center gap-2 transition">
                 Agent <span className="bg-white/25 rounded-full px-1.5 text-[10px] font-semibold">4</span>
               </Link>
             </nav>
