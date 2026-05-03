@@ -25,9 +25,9 @@ import {
 
 export const Route = createFileRoute("/agent")({
   component: AgentWorkspace,
-  validateSearch: (s: Record<string, unknown>) => ({
-    p: (s.p as string) ?? "",
-    id: (s.id as string) ?? "",
+  validateSearch: (s: Record<string, unknown>): { p?: string; id?: string } => ({
+    p: typeof s.p === "string" ? s.p : undefined,
+    id: typeof s.id === "string" ? s.id : undefined,
   }),
   head: () => ({
     meta: [
