@@ -97,9 +97,23 @@ function normalizePath(p: string): string {
   return path;
 }
 
-function resolveLocalFile(target: string) {
+function resolveLocalFile(target: string, baseDir = "/"): string | null {
   const normalized = normalizePath(target);
-  return fallbackFiles.has(normalized) ? normalized : null;
+  if (fallbackFiles.has(normalized)) return normalized;
+  // Try relative to base dir of entry HTML (e.g. /public/)
+  const cleaned = target.replace(/^\.?\/?/, "");
+  const candidates = [
+    normalized,
+    `${baseDir.replace(/\/$/, "")}/${cleaned}`,
+    `/public/${cleaned}`,
+    `/src/${cleaned}`,
+    `/${cleaned}`,
+  ];
+  for (const c of candidates) {
+    const n = normalizePath(c);
+    if (fallbackFiles.has(n)) return n;
+  }
+  return null;
 }
 
 function createFallbackAssetUrl(path: string) {
@@ -115,7 +129,7 @@ function createFallbackAssetUrl(path: string) {
 function buildFallbackPreviewDocument() {
   if (typeof window === "undefined") return null;
 
-  const entry = ["/index.html", "/public/index.html", "/src/index.html"].find((candidate) => fallbackFiles.has(candidate));
+  const entry = ["/index.html", "/public/index.html", "/src/index.html", "/app/index.html"].find((candidate) => fallbackFiles.has(candidate));
   if (!entry) return null;
 
   revokeFallbackObjectUrls();
@@ -123,10 +137,11 @@ function buildFallbackPreviewDocument() {
   let html = fallbackFiles.get(entry) ?? null;
   if (!html) return null;
 
+  const baseDir = entry.substring(0, entry.lastIndexOf("/")) || "/";
+
   html = html.replace(/\b(href|src)=(["'])([^"']+)\2/gi, (full, attr, quote, rawPath: string) => {
     if (/^(https?:|data:|blob:|mailto:|tel:|#)/i.test(rawPath)) return full;
-    const normalized = rawPath.startsWith("/") ? rawPath : `/${rawPath.replace(/^\.\//, "")}`;
-    const localFile = resolveLocalFile(normalized);
+    const localFile = resolveLocalFile(rawPath, baseDir);
     if (!localFile) return full;
     const url = createFallbackAssetUrl(localFile);
     return url ? `${attr}=${quote}${url}${quote}` : full;

@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { AgentChatPanel } from "@/components/AgentChatPanel";
 import {
@@ -12,13 +12,23 @@ import {
   readFile,
 } from "@/lib/webcontainer";
 import {
-  Play, Plus, Search, PanelRight, Sparkles, FileCode, Eye, Folder,
-  RefreshCw, ExternalLink, ChevronRight, ChevronDown, Globe2,
+  createProject,
+  getCurrentProjectId,
+  getProject,
+  setCurrentProjectId,
+  updateProjectFiles,
+} from "@/lib/projects";
+import {
+  Play, Search, PanelRight, Sparkles, FileCode, Eye, Folder,
+  RefreshCw, ExternalLink, ChevronRight, ChevronDown, Globe2, ArrowLeft,
 } from "lucide-react";
 
 export const Route = createFileRoute("/agent")({
   component: AgentWorkspace,
-  validateSearch: (s: Record<string, unknown>) => ({ p: (s.p as string) ?? "" }),
+  validateSearch: (s: Record<string, unknown>): { p?: string; id?: string } => ({
+    p: typeof s.p === "string" ? s.p : undefined,
+    id: typeof s.id === "string" ? s.id : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Workspace — Replit Clone" },
@@ -30,7 +40,7 @@ export const Route = createFileRoute("/agent")({
 type Tab = "preview" | "files";
 
 function AgentWorkspace() {
-  const { p: initialPrompt } = Route.useSearch();
+  const { p: initialPrompt, id: routeId } = Route.useSearch();
   const [tab, setTab] = useState<Tab>("preview");
   const [files, setFiles] = useState<string[]>([]);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -39,7 +49,15 @@ function AgentWorkspace() {
   const [previewDocument, setPreviewDocument] = useState<string | null>(getPreviewDocument());
   const [sandboxMode, setSandboxMode] = useState<"webcontainer" | "fallback">(getSandboxMode());
   const [wcError, setWcError] = useState<string | null>(null);
-  const [projectName] = useState("Untitled Project");
+  const [projectId] = useState(() => {
+    if (routeId) { setCurrentProjectId(routeId); return routeId; }
+    const existing = getCurrentProjectId();
+    if (existing && getProject(existing)) return existing;
+    const p = createProject(initialPrompt || "Nouveau projet");
+    setCurrentProjectId(p.id);
+    return p.id;
+  });
+  const projectName = getProject(projectId)?.name ?? "Untitled Project";
 
   const refresh = useCallback(async () => {
     try {
@@ -48,8 +66,13 @@ function AgentWorkspace() {
       setSandboxMode(getSandboxMode());
       setPreviewDocument(getPreviewDocument());
       setWcError(getBootError());
+      const filesMap: Record<string, string> = {};
+      await Promise.all(list.map(async (f) => {
+        try { filesMap[f] = await readFile(f); } catch {}
+      }));
+      updateProjectFiles(projectId, filesMap);
     } catch {}
-  }, []);
+  }, [projectId]);
 
   useEffect(() => {
     getContainer().then(() => {
@@ -74,9 +97,12 @@ function AgentWorkspace() {
       {/* Top bar */}
       <header className="h-12 flex items-center justify-between px-3 border-b border-neutral-800 bg-[#0e0e10] shrink-0">
         <div className="flex items-center gap-2">
-          <a href="/" className="w-7 h-7 rounded-md bg-gradient-to-br from-orange-500 to-pink-500 grid place-items-center">
+          <Link to="/" className="flex items-center gap-1.5 px-1.5 py-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white" title="Retour aux projets">
+            <ArrowLeft className="w-4 h-4" />
+          </Link>
+          <span className="w-7 h-7 rounded-md bg-gradient-to-br from-orange-500 to-pink-500 grid place-items-center">
             <Sparkles className="w-4 h-4 text-white" />
-          </a>
+          </span>
           <div className="flex items-center gap-1.5 bg-[#161618] hover:bg-[#1f1f22] cursor-pointer rounded-md px-3 py-1.5 text-sm border border-neutral-800">
             <Folder className="w-3.5 h-3.5 text-neutral-400" />
             <span className="font-medium">{projectName}</span>
